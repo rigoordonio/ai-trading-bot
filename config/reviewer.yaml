@@ -1,0 +1,32 @@
+# The Reviewer: grades every bot after each paper run and manages risk DOWN only.
+#
+#   ACTIVE     normal trading                         (new buys x1.0)
+#   PROBATION  underperforming: new buys at half size (x size_multiplier)
+#              lifted automatically when the bot recovers
+#   PAUSED     serious trouble: no new buys; sells / stop-losses still run
+#              only YOU can lift it:  python scripts/reviewer.py --resume SWING_V1
+#
+# The Reviewer can never increase a bot's size, capital or limits.
+# All thresholds are starting points, not optimised values.
+
+enabled: true
+
+min_days: 20                  # ~1 month of live runs before a bot can be put on probation
+rolling_days: 40              # window for the rolling Sharpe ratio
+
+probation:
+  max_drawdown: 0.08          # bot equity 8% below its peak
+  min_rolling_sharpe: -0.5
+  size_multiplier: 0.5
+
+pause:                        # applies even before min_days: a big loss is a big loss
+  max_drawdown: 0.12
+  losing_streak: 6            # consecutive losing closed trades
+
+recover:                      # leave probation when BOTH hold
+  max_drawdown: 0.04
+  min_rolling_sharpe: 0.0
+
+alerts:
+  missed_run_business_days: 2 # warn if the last run is older than this
+  notify_macos: true          # desktop notification when something needs attention

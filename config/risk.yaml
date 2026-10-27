@@ -1,0 +1,59 @@
+# The risk engine is the final, deterministic authority. Strategies, the ML
+# model and the LLM layer can only PROPOSE. Nothing overrides these limits.
+
+position_sizing:
+  method: volatility            # fixed_fractional | volatility | atr
+  fixed_fraction: 0.10          # fixed_fractional: 10% of equity per position
+  target_position_vol: 0.15     # volatility: annualised vol budget per position (as share of equity weight)
+  vol_lookback_feature: realized_vol_20
+  atr_risk_per_trade: 0.01      # atr: risk 1% of equity per trade
+  atr_stop_multiple: 2.0
+
+limits:
+  max_position_weight: 0.15     # max 15% of equity in one symbol
+  max_gross_exposure: 0.95      # max 95% of equity invested
+  min_cash_reserve: 0.05        # always keep 5% cash
+  max_sector_weight: 0.40       # needs sector metadata (ETFs are excluded)
+  max_concurrent_positions: 6
+  max_portfolio_volatility: 0.25  # forecast annualised vol; new buys scaled down above this
+  min_trade_value: 500          # ignore dust trades
+  min_price: 5.0                # no penny stocks
+  min_avg_dollar_volume: 5000000
+
+stops:
+  # Stops are configurable and must be BACKTESTED; they are not assumed optimal.
+  enabled: true
+  fixed_stop_pct: 0.10          # exit if close falls 10% below average entry
+  trailing_atr_multiple: 3.0    # exit if close falls 3 ATR below highest close since entry (null = off)
+  max_holding_days: null        # time stop (null = off)
+
+drawdown:
+  max_portfolio_drawdown: 0.20  # KILL SWITCH: block all new trades at -20% from peak
+  liquidate_on_kill_switch: false   # true = also exit all positions
+  max_daily_loss: 0.04          # block new trades for the rest of the day after -4%
+  kill_switch_reset: manual     # manual | {days: N}  e.g.  {days: 20}
+
+safety:
+  # FAIL CLOSED: if anything required for an order cannot be trusted, no order.
+  max_order_notional: 25000          # any single order above this is REJECTED as abnormal
+  max_signal_age_days: 4             # calendar days between signal bar and submission
+  max_data_staleness_days: 4         # latest bar older than this (vs as-of date) = stale
+  max_bar_abs_return: 0.40           # current bar moving > 40% vs previous close = discontinuity, no trade
+  # When the trading gate is closed (kill switch, CRITICAL error, open circuit)
+  # submit_order() refuses EVERY new order. Set true to still allow orders that
+  # only reduce exposure (stop-loss exits). Default strict.
+  allow_risk_reducing_orders_when_halted: false
+  reconciliation_cash_tolerance: 1.0
+  circuit_breaker:
+    failure_threshold: 3             # consecutive failures before OPEN
+    recovery_timeout_seconds: 300    # OPEN -> HALF_OPEN after this
+    half_open_max_calls: 1           # controlled probes allowed in HALF_OPEN
+
+portfolio:
+  # ACCOUNT-WIDE limits across all bots (each bot also has sleeve-level limits).
+  max_gross_exposure: 0.95           # all bots combined
+  max_symbol_weight: 0.25            # same symbol held by several bots, combined
+  max_bot_weight: 0.60               # one bot's positions vs account equity (strategy concentration)
+  max_total_positions: 15
+  max_portfolio_drawdown: 0.20       # global kill switch (account equity)
+  max_daily_loss: 0.05

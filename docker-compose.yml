@@ -1,0 +1,52 @@
+# docker compose up --build
+# Secrets come from .env (git-ignored). Real-money trading is not supported.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-trading}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trader}"]
+      interval: 5s
+      retries: 10
+    ports: ["5432:5432"]
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trading}
+      TRADING_MODE: PAPER
+    depends_on: {db: {condition: service_healthy}}
+    volumes: [./data:/app/data, ./reports:/app/reports, ./models:/app/models]
+    ports: ["8000:8000"]
+
+  dashboard:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trading}
+      TRADING_MODE: PAPER
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    depends_on: {db: {condition: service_healthy}}
+    volumes: [./data:/app/data, ./reports:/app/reports, ./models:/app/models]
+    ports: ["8501:8501"]
+
+  # One paper-trading cycle; schedule with cron / a scheduler, e.g.
+  #   docker compose run --rm paper
+  paper:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trading}
+      TRADING_MODE: PAPER
+    command: ["python", "scripts/paper_trade.py", "--db"]
+    depends_on: {db: {condition: service_healthy}}
+    volumes: [./data:/app/data, ./models:/app/models]
+    profiles: ["jobs"]
+
+volumes:
+  pgdata:

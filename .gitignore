@@ -1,0 +1,44 @@
+# --- Secrets: NEVER commit these ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials*.json
+*_credentials.*
+broker_keys*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data and generated artefacts (re-creatable)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+models/artifacts/*
+!models/artifacts/.gitkeep
+reports/*
+!reports/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+paper_state*.json
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+data/paper*/
+logs/
+.hypothesis/
+.streamlit/secrets.toml

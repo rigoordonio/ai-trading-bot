@@ -1,0 +1,81 @@
+# Every strategy here is a HYPOTHESIS. Defaults are textbook values, not
+# optimised. Backtest each one independently before trusting it.
+#
+# Every strategy outputs a score in [0, 1] per (date, symbol):
+#   0 = no long exposure wanted, 1 = maximum conviction.
+# The platform is long-only by default.
+
+features:
+  return_windows: [1, 5, 20, 60]
+  sma_windows: [20, 50, 200]
+  ema_windows: [12, 26]
+  rsi_window: 14
+  macd: {fast: 12, slow: 26, signal: 9}
+  roc_window: 10
+  atr_window: 14
+  realized_vol_windows: [20, 60]
+  volume_window: 20
+  bollinger: {window: 20, num_std: 2.0}
+  high_52w_window: 252
+  breakout_window: 55
+
+strategies:
+  trend_following:
+    enabled: true
+    entry_threshold: 1.0        # all conditions must hold
+    params:
+      fast_sma: 50
+      slow_sma: 200
+      momentum_window: 20
+
+  mean_reversion:
+    enabled: true
+    entry_threshold: 0.5
+    params:
+      rsi_threshold: 30
+      zscore_threshold: -2.0    # close vs 20d mean, in std devs
+      use_bollinger: true
+      exit_on_mean: true        # exit when close recovers to SMA20
+      max_holding_days: 10
+      require_long_term_uptrend: true   # only buy dips above SMA200
+
+  momentum:
+    enabled: true
+    entry_threshold: 0.67       # percentile rank cut-off
+    params:
+      windows: [20, 60]
+      risk_adjusted: true
+      top_n: 3
+      require_positive_momentum: true   # absolute momentum filter
+
+  breakout:
+    enabled: true
+    entry_threshold: 1.0
+    params:
+      lookback: 55              # prior N-day high (excludes today)
+      exit_lookback: 20         # exit on break of prior 20-day low
+      volume_ratio_min: 1.5
+      require_trend: true
+
+  ml:
+    enabled: true
+    entry_threshold: 0.55
+    params:
+      model_name: best          # best (validation-selected) or a model name
+
+ensemble:
+  # Weights live here, never in code. They are renormalised over the
+  # components that are available on each date.
+  weights:
+    trend_following: 0.30
+    momentum: 0.25
+    mean_reversion: 0.10
+    breakout: 0.15
+    ml: 0.20
+  buy_threshold: 0.60           # combined score needed to open a position
+  hold_threshold: 0.40          # below this an existing position is REDUCEd
+  exit_threshold: 0.25          # below this an existing position is EXITed
+  reduce_fraction: 0.5
+  # The ML probability is centred: score = clip((p - 0.5) / (p_max - 0.5), 0, 1)
+  ml_probability_floor: 0.5
+  ml_probability_cap: 0.70

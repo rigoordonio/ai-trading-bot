@@ -1,0 +1,91 @@
+# Global platform settings. Secrets do NOT belong here -> use .env
+
+mode: backtest            # backtest | paper   ("live" is not supported)
+
+universe:
+  # Configuration-driven universe. Strategies are not specific to these symbols.
+  symbols: [SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMZN, GOOGL, META]
+  benchmark: SPY          # passive benchmark AND market-regime proxy
+  # Optional point-in-time membership file (symbol,start_date,end_date[,sector]).
+  # Use it for large historical universes to avoid survivorship bias:
+  # a symbol is only tradable between its start and end dates.
+  membership_file: null   # e.g. data/universe/membership.csv
+  sectors:                # optional sector metadata for concentration limits
+    SPY: ETF
+    QQQ: ETF
+    IWM: ETF
+    AAPL: Technology
+    MSFT: Technology
+    NVDA: Technology
+    AMZN: Consumer Discretionary
+    GOOGL: Communication Services
+    META: Communication Services
+
+data:
+  provider: yfinance      # yfinance | csv | synthetic (offline, for tests/demos)
+  start: "2012-01-01"     # extra history so SMA200 / 52w features are warm by 2015
+  end: null               # null = today
+  interval: 1d
+  raw_dir: data/raw
+  processed_dir: data/processed
+  retries: 3
+  retry_backoff_seconds: 2.0
+  # Corporate actions: "adjusted" rescales O/H/L/C by adj_close/close so returns
+  # include splits AND dividends (total-return). "raw" uses unadjusted prices
+  # (NOT recommended: splits create fake crashes).
+  price_adjustment: adjusted
+  # Paper runs download this many calendar days of history. The investor bot's
+  # weekly features need ~200 weeks (w_mkt_trend uses a 200-week average).
+  paper_history_days: 2200
+  validation:
+    max_daily_abs_return: 0.5       # |return| above this is flagged as abnormal
+    volume_zscore_threshold: 8.0    # abnormal volume
+    stale_run_length: 5             # identical closes N days in a row = stale
+    max_missing_business_days: 3    # gap larger than this is flagged
+    fail_on_error: false            # true = abort the pipeline on ERROR issues
+
+database:
+  url_env: DATABASE_URL             # read from environment / .env
+  default_url: sqlite:///data/trading.db
+
+backtest:
+  initial_capital: 100000
+  start: "2015-01-01"
+  end: null
+  # Signals are computed on the close of day t and executed at the OPEN of t+1
+  # (execution_delay_bars = 1). Never 0: that would trade on a price that was
+  # already gone when the signal became known.
+  execution_delay_bars: 1
+  costs:
+    commission_per_share: 0.005
+    commission_min: 1.0
+    commission_pct: 0.0
+    half_spread_bps: 2.0            # paid on each side
+    slippage_bps: 5.0               # adverse move vs reference price
+    impact_coefficient: 10.0        # impact bps = coef * sqrt(participation %)
+    max_participation: 0.05         # max fraction of the bar's volume
+  rebalance_frequency: daily        # daily | weekly | monthly
+
+ml:
+  target_horizon_days: 5            # predict sign of the forward 5-day return
+  target_type: classification       # classification | regression
+  models: [logistic_regression, random_forest, gradient_boosting, lightgbm]
+  selection_metric: roc_auc         # chosen on the VALIDATION set only
+  split:
+    train: ["2015-01-01", "2021-12-31"]
+    validation: ["2022-01-01", "2023-12-31"]
+    test: ["2024-01-01", null]
+  purge_days: null                  # null = target horizon (labels overlap)
+  random_state: 42
+  artifacts_dir: models/artifacts
+
+walk_forward:
+  train_years: 4
+  validation_years: 1
+  test_years: 1
+  step_years: 1
+
+logging:
+  level_env: LOG_LEVEL
+  default_level: INFO
+  json: false

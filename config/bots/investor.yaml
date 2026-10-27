@@ -1,0 +1,86 @@
+# BOT C: INVESTOR_V1. Long-term investor on WEEKLY candles (3-12 months).
+#
+# Weekly candles are built from validated daily bars. A week becomes usable
+# on the first trading day AFTER its last session: an incomplete week is
+# never used. Daily features below exist only for risk (ATR stops,
+# liquidity); the signal and the model use weekly (w_) features only.
+
+bot_id: INVESTOR_V1
+bot_type: investor                  # selects src/bots/investor/
+enabled: true
+description: "Long-term investor on weekly candles (3-12 months)"
+strategy_version: "1.0.0"
+timeframe: 1w
+holding_period: {min: 3, max: 12, unit: months}
+capital_allocation: 0.30
+rebalance_frequency: weekly         # evaluated once per completed week
+symbols: null
+
+features:                           # DAILY features: risk / liquidity / stops only
+  return_windows: [1, 20]
+  sma_windows: [50, 200]
+  ema_windows: []
+  atr_window: 14
+  realized_vol_windows: [20]
+  volume_window: 20
+
+weekly_features:                    # WEEKLY features -> columns prefixed w_
+  return_windows: [1, 4, 12, 26, 52]  # w_ret_12d = 12-WEEK return
+  sma_windows: [10, 20, 40]           # 10/20/40-week moving averages
+  ema_windows: [10]
+  rsi_window: 14
+  atr_window: 14
+  realized_vol_windows: [13, 26]
+  volume_window: 10
+  bollinger: {window: 20, num_std: 2.0}
+  high_52w_window: 52
+  breakout_window: 26
+  extra_breakout_windows: [13]
+  periods_per_year: 52
+
+fundamentals:                       # disabled: no reliable fundamentals source configured
+  enabled: false
+  source: null
+  features: []
+
+components:
+  lt_momentum:
+    type: long_term_momentum
+    weight: 0.30
+    entry_threshold: 0.6
+    params: {long_window: 52, skip_window: 4, prefix: "w_"}
+  weekly_trend:
+    type: trend_following
+    weight: 0.25
+    entry_threshold: 1.0
+    params: {fast_sma: 10, slow_sma: 40, momentum_window: 12, prefix: "w_"}
+  low_volatility:
+    type: low_volatility
+    weight: 0.10
+    entry_threshold: 0.5
+    params: {vol_window: 26, prefix: "w_"}
+  drawdown_filter:
+    type: drawdown_filter
+    weight: 0.10
+    entry_threshold: 0.5
+    params: {max_drawdown: 0.20, prefix: "w_"}
+
+ml:                                 # investor_model_v1
+  enabled: true
+  weight: 0.25
+  model_version: "investor-ml-1"
+  target_horizon_days: 63           # ~13 weeks (3 months), in trading days of the daily calendar
+  target_threshold: 0.03
+  models: [logistic_regression, random_forest, gradient_boosting]
+  probability_floor: 0.5
+  probability_cap: 0.70
+  features: [w_ret_4d, w_ret_12d, w_ret_26d, w_ret_52d, w_rsi_14, w_realized_vol_13, w_realized_vol_26,
+             w_dist_52w_high, w_drawdown_52, w_trend_strength, w_risk_adj_mom_26, w_risk_adj_mom_52,
+             w_atr_pct, w_volume_ratio, w_mkt_trend, w_mkt_vol_20, w_breadth_50]
+
+thresholds: {buy: 0.60, hold: 0.40, exit: 0.25, reduce_fraction: 0.5}
+
+risk:
+  position_sizing: {method: fixed_fractional, fixed_fraction: 0.12}
+  limits: {max_position_weight: 0.20, max_concurrent_positions: 8}
+  stops: {enabled: true, fixed_stop_pct: 0.20, trailing_atr_multiple: null, max_holding_days: null}
